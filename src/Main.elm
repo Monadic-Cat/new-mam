@@ -329,9 +329,9 @@ potentialRow perAdvance potential markedPotential =
 
 
 
--- Note poor behavior over negative numbers.
--- Truly it should be prohibited for a potential count to ever be negative,
--- But this app does not implement that yet.
+-- Note poor behavior over negative numbers,
+-- but this app prohibits negative potential,
+-- so it's fine.
 groupPotential : Int -> Int -> List Int
 groupPotential groupSize potential =
     let
