@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Make sure we've got an Elm binary to work with.
-. prep.sh
+. "$(pwd)/prep.sh"
 
 ELM_FLAGS=--optimize make
 
