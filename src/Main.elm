@@ -299,8 +299,18 @@ mapOrdDict func dict d =
 
 
 conditionRow conditions =
-    div []
-        (mapOrdDict (\name marked -> text name) conditions False)
+    let conditionFunc name marked =
+            div [ class "condition-cell"
+                , if marked then
+                      class "marked-condition-cell"
+                  else
+                      class "unmarked-condition-cell"
+                , onClick <| ToggleCondition name
+                ]
+                [ text name ]
+    in
+        div [ class "condition-row" ]
+            (mapOrdDict conditionFunc conditions False)
 
 
 potentialRow : Int -> Int -> Int -> Html Msg

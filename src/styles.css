@@ -52,3 +52,15 @@ html {
         margin-right: 10px;
     }
 }
+
+.condition-cell {
+    user-select: none;
+    border-style: solid;
+    display: inline-block;
+    border-width: 1px;
+    padding: 5px;
+}
+
+.marked-condition-cell {
+    background-color: grey;
+}
