@@ -8,7 +8,97 @@
   </head>
 
   <body>
-    <div id="elm"></div>
+    <div id="elm">
+      <!-- Put stuff for Elm to destroy if it can load here. -->
+      <!-- Like a noscript tag, but it'll work in cases where the JS just doesn't load, too. -->
+      <h1>What is this?</h1>
+      <p>
+        This is not a normal website. This site is actually a character sheet manager for a game called
+        <a href="https://www.magpiegames.com/masks/">Masks</a>!
+        A so-called web "app". But the interactive content only works with JavaScript,
+        which means one of two things happened:
+        <ul>
+          <li>The JavaScript that drives this web "app" failed to load</li>
+          <li>You have JavaScript disabled</li>
+          <!-- <li>Or maybe you're using a screen reader and I don't know how those work</li> -->
+        </ul>
+        In either of these cases, I sincerely apologize! I couldn't think of a way to make this work.
+      </p>
+      <h1>How do I make it work?</h1>
+      <p>
+        <ul>
+          <li>
+            If you have JavaScript disabled for some reason, it is possible you can just enable it and this
+            web "app" will work! I understand if you aren't willing to do that.
+          </li>
+          <li>
+            If the JavaScript failed to load due to some transient network error, you can just reload!
+          </li>
+          <li>
+            If you're now offline, there is nothing to be done. I am sorry.
+          </li>
+        </ul>
+      </p>
+      <h1>What else can I do?</h1>
+      <p>
+        This web "app" is nonessential. There is nothing it does that cannot be done with a simple text editor.
+        Here's a Markdown template:
+        <pre>
+          **Player Name:**
+          **Character Name:**
+          **Character Hero Name:**
+          
+          **Playbook:**
+          **Powers/Abilities:**
+          **-----------------------------------**
+          **[Labels]**
+          
+          **Danger:**   -2 | -1 | 0 | 1 | 2 | 3
+          **Freak:**    -2 | -1 | 0 | 1 | 2 | 3
+          **Savior:**   -2 | -1 | 0 | 1 | 2 | 3
+          **Superior:** -2 | -1 | 0 | 1 | 2 | 3
+          **Mundane:**  -2 | -1 | 0 | 1 | 2 | 3
+          
+          **Conditions:** Afraid | Angry | Guilty | Hopeless | Insecure
+          **Harm:** 0
+          **Potential:** 0
+        </pre>
+        Just copy and paste that into a text editor and start playing!
+        To help you get started, here's an example of a filled out sheet:
+        <pre>
+          **Player Name:** Monadic Cat
+          **Character Name:** Ashley Korin Durst
+          **Character Hero Name:** Dart
+
+          **Playbook:** The Beacon
+          **Powers/Abilities:** 
+          **-----------------------------------**
+          **[Labels]**
+
+          **Danger:**   -2 | **-1** | 0 | 1 | 2 | 3
+          **Freak:**    -2 | **-1** | 0 | 1 | 2 | 3
+          **Savior:**   -2 | -1 | 0 | 1 | **2** | 3
+          **Superior:** -2 | -1 | **0** | 1 | 2 | 3
+          **Mundane:**  -2 | -1 | 0 | 1 | **2** | 3
+
+          **Conditions:** Afraid | Angry | Guilty | Hopeless | Insecure
+          **Harm:** 0
+          **Potential:** 0
+        </pre>
+        There are actually lots of parts to the game that this web "app" doesn't help with at all,
+        like tracking Moves, Relationships, and Influence.
+        To do those, just add sections to your sheet like
+        <pre>
+          **[Influence]**
+        </pre>
+        and put the relevant information under them.
+      </p>
+      <h1>Can I read the source code?</h1>
+      <p>
+        If you're looking to read the source code for this web "app" before you run it,
+        it's on <a href="https://github.com/Monadic-Cat/new-mam">GitHub</a>!
+      </p>
+    </div>
     <script>
       var cache = JSON.parse(localStorage.getItem('cache'));
       var app = Elm.Main.init({
