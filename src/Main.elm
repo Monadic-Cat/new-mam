@@ -23,7 +23,7 @@ main =
 type alias CharacterState =
     { player : String
     , name : String
-    , hero_name : String
+    , heroName : String
     , playbook : String
     , powers : String
     , labels : OrderedDict String Int
@@ -51,7 +51,7 @@ encodeCharacterState state =
     JsonEncode.object
         [ ("player",          JsonEncode.string state.player)
         , ("name",            JsonEncode.string state.name)
-        , ("hero_name",       JsonEncode.string state.hero_name)
+        , ("heroName",        JsonEncode.string state.heroName)
         , ("playbook",        JsonEncode.string state.playbook)
         , ("powers",          JsonEncode.string state.powers)
         , ("labels",          encodeOrderedDict identity JsonEncode.int state.labels)
@@ -65,7 +65,7 @@ characterStateDecoder =
     JsonDecode.succeed CharacterState
         |> Pipe.optional "player"          JsonDecode.string ""
         |> Pipe.optional "name"            JsonDecode.string ""
-        |> Pipe.optional "hero_name"       JsonDecode.string ""
+        |> Pipe.optional "heroName"        JsonDecode.string ""
         |> Pipe.optional "playbook"        JsonDecode.string ""
         |> Pipe.optional "powers"          JsonDecode.string ""
         |> Pipe.optional "labels"          (orderedDictDecoder JsonDecode.int) defaultLabelState
@@ -146,7 +146,7 @@ update msg model =
             { model | name = str }
 
         ChangeHeroName str ->
-            { model | hero_name = str }
+            { model | heroName = str }
 
         ChangePlaybook str ->
             { model | playbook = str }
@@ -189,7 +189,7 @@ view playbooks model =
         [ div [ class "prelude" ]
               [ nameRow "Player Name: " model.player ChangePlayer
               , nameRow "Character Name: " model.name ChangeName
-              , nameRow "Hero Name: " model.hero_name ChangeHeroName
+              , nameRow "Hero Name: " model.heroName ChangeHeroName
               , div [ class "prelude-field-box" ]
                   [ span [ class "prelude-field-title" ] [ text "Playbook: " ]
                   , input
