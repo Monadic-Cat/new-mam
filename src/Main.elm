@@ -5,7 +5,7 @@ import Dict exposing (Dict)
 import Html exposing (Html, button, datalist, div, input, option, table, text, textarea, tr, td, span, br)
 import Html.Attributes exposing (class, id, list, name, value)
 import Html.Events exposing (onClick, onInput)
-import OrderedDict exposing (OrderedDict, empty, insert)
+import OrderedDict exposing (OrderedDict)
 import Json.Encode as JsonEncode
 import Json.Decode as JsonDecode
 import Json.Decode.Pipeline as Pipe
@@ -83,21 +83,21 @@ init state =
 
 defaultLabelState : OrderedDict String Int
 defaultLabelState =
-    (empty
-    |> insert "Danger" 0
-    |> insert "Freak" 0
-    |> insert "Savior" 0
-    |> insert "Superior" 0
-    |> insert "Mundane" 0
+    (OrderedDict.empty
+    |> OrderedDict.insert "Danger" 0
+    |> OrderedDict.insert "Freak" 0
+    |> OrderedDict.insert "Savior" 0
+    |> OrderedDict.insert "Superior" 0
+    |> OrderedDict.insert "Mundane" 0
     )
 defaultConditionsState : OrderedDict String Bool
 defaultConditionsState =
-    (empty
-    |> insert "Afraid" False
-    |> insert "Angry" False
-    |> insert "Guilty" False
-    |> insert "Hopeless" False
-    |> insert "Insecure" False
+    (OrderedDict.empty
+    |> OrderedDict.insert "Afraid" False
+    |> OrderedDict.insert "Angry" False
+    |> OrderedDict.insert "Guilty" False
+    |> OrderedDict.insert "Hopeless" False
+    |> OrderedDict.insert "Insecure" False
     )
     
 emptyCharacterState : CharacterState
@@ -155,7 +155,7 @@ update msg model =
             { model | powers = str }
 
         SetLabel label value ->
-            { model | labels = model.labels |> insert label value }
+            { model | labels = model.labels |> OrderedDict.insert label value }
 
         ToggleCondition condition ->
             { model
