@@ -28,7 +28,7 @@ html {
 }
 
 .label-cell {
-    ser-select: none;
+    user-select: none;
     display: inline-block;
     padding: 10px;
     border-style: solid;
