@@ -18,3 +18,8 @@ which uglifyjs
 if [ $? != 0 ] ; then
     npm install -g uglify-js@3.8
 fi
+
+which terser
+if [ $? != 0 ] ; then
+    npm install -g terser@4.8
+fi
