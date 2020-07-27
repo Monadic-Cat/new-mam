@@ -16,5 +16,5 @@ fi
 
 which uglifyjs
 if [ $? != 0 ] ; then
-    npm install -g uglify-js
+    npm install -g uglify-js@3.8
 fi
