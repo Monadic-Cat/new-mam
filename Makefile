@@ -6,6 +6,7 @@ dist/main.js: dist/ elm.json src/Main.elm
 
 dist/index.html: src/index.html
 	cp src/index.html dist/index.html
+	sh replacements.sh
 
 dist/styles.css: src/styles.css
 	cp src/styles.css dist/styles.css
