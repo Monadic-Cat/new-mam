@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, user-scalable=no">
     <title>(new) MAM</title>
     <script src="main.js"></script>
+    <script type="module" src="sheet.js" defer></script>
     <link rel="stylesheet" type="text/css" href="styles.css" />
   </head>
 
@@ -105,7 +106,10 @@
         <code>git clone https://github.com/Monadic-Cat/new-mam</code>
       </p>
     </div>
-    <script>
+    <script type="module">
+      import makeSheet from './sheet.js';
+      var default_auth_endpoint = "{{AUTH_ENDPOINT}}";
+      var default_sync_endpoint = "{{SYNC_ENDPOINT}}";
       var cache = JSON.parse(localStorage.getItem('cache'));
       var app = Elm.Main.init({
          node: document.getElementById('elm'),
@@ -114,6 +118,9 @@
       app.ports.cache.subscribe(function(data) {
          console.log(data);
          localStorage.setItem('cache', JSON.stringify(data));
+      });
+      app.ports.sheetToClipboard.subscribe(function(data) {
+         navigator.clipboard.writeText(makeSheet(data));
       });
     </script>
   </body>

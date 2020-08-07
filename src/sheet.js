@@ -77,7 +77,6 @@ function makePotentialLine(potential, markedPotential, groupSize) {
  * @return {string} sheet
  */
 function makeSheet(state) {
-	console.log(state);
 	return [
 		`**Player Name:** ${state.player}`
 		,`**Character Name:** ${state.name}`

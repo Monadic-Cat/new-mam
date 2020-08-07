@@ -1,227 +1,142 @@
 port module Main exposing (..)
 
 import Browser
-import Dict exposing (Dict)
-import Html exposing (Html, button, datalist, div, input, option, table, text, textarea, tr, td, span, br)
-import Html.Attributes exposing (class, id, list, name, value)
-import Html.Events exposing (onClick, onInput)
+import Html exposing (Html)
+import Html.Attributes
+import Html.Events
 import OrderedDict exposing (OrderedDict)
 import Json.Encode as JsonEncode
 import Json.Decode as JsonDecode
 import Json.Decode.Pipeline as Pipe
+import Array exposing (Array)
+import Http
+import Character exposing (CharacterState)
 
 port cache : JsonEncode.Value -> Cmd msg
+port sheetToClipboard : JsonEncode.Value -> Cmd msg
 
 main =
     Browser.element { init = \x -> ( init x, Cmd.none )
                     , subscriptions = \c -> Sub.none
-                    , update = withCache update
-                    , view = view masksPlaybooks
+                    , update = withAppCache update
+                    , view = view
                     }
 
+-- Settings for the user to configure directly
+type alias UserSettings =
+    { syncing : Syncing }
 
-type alias CharacterState =
-    { player : String
-    , name : String
-    , heroName : String
-    , playbook : String
-    , powers : String
-    , labels : OrderedDict String Int
-    , conditions : OrderedDict String Bool
-    , potential : Int
-    , markedPotential : Int
+type Syncing
+    = SyncEnabled SyncData
+    | SyncDisabled MaybeSync
+
+type alias MaybeSync =
+    { token : Maybe JsonWebToken
+    , backend : Maybe String
     }
 
-encodeOrderedDict : (k -> String) -> (v -> JsonEncode.Value) -> OrderedDict k v -> JsonEncode.Value
-encodeOrderedDict keyFunc valFunc dict =
-    JsonEncode.object
-        [ ("order", JsonEncode.list (\k -> JsonEncode.string <| keyFunc k) dict.order)
-        , ("dict", JsonEncode.dict keyFunc valFunc dict.dict)
-        ]
+-- Wrapper to make misusing a JWT a bit harder.
+-- This will also make it a bit harder to use a
+-- String that doesn't belong on auth methods.
+type JsonWebToken = JsonWebToken String
 
--- Note that JSON cannot have non-String keys.
-orderedDictDecoder : (JsonDecode.Decoder v) -> JsonDecode.Decoder (OrderedDict String v)
-orderedDictDecoder valDecoder =
-    JsonDecode.succeed OrderedDict
-        |> Pipe.required "order" (JsonDecode.list JsonDecode.string)
-        |> Pipe.required "dict" (JsonDecode.dict valDecoder)
+type alias SyncData =
+    -- This field should not actually be shown,
+    -- and clearing it is tantamount to disabling syncing.
+    -- It may be refreshed, however.
+    { token : JsonWebToken
+    -- This should be a guaranteed valid URL
+    -- The first value it holds will be statically guaranteed,
+    -- by virtue of being written in at compile time by me,
+    -- but ultimately this should be a customizable field.
+    , backend : String
+    }
 
-encodeCharacterState : CharacterState -> JsonEncode.Value
-encodeCharacterState state =
-    JsonEncode.object
-        [ ("player",          JsonEncode.string state.player)
-        , ("name",            JsonEncode.string state.name)
-        , ("heroName",        JsonEncode.string state.heroName)
-        , ("playbook",        JsonEncode.string state.playbook)
-        , ("powers",          JsonEncode.string state.powers)
-        , ("labels",          encodeOrderedDict identity JsonEncode.int state.labels)
-        , ("conditions",      encodeOrderedDict identity JsonEncode.bool state.conditions)
-        , ("potential",       JsonEncode.int state.potential)
-        , ("markedPotential", JsonEncode.int state.markedPotential)
-        ]
+type alias AppState =
+    { characters : Array CharacterState
+    , selectedCharacter : Int
+    , settings : UserSettings
+    }
+getCharacterState : Int -> AppState -> Maybe CharacterState
+getCharacterState index state = Array.get index state.characters
 
-characterStateDecoder : JsonDecode.Decoder CharacterState
-characterStateDecoder =
-    JsonDecode.succeed CharacterState
-        |> Pipe.optional "player"          JsonDecode.string ""
-        |> Pipe.optional "name"            JsonDecode.string ""
-        |> Pipe.optional "heroName"        JsonDecode.string ""
-        |> Pipe.optional "playbook"        JsonDecode.string ""
-        |> Pipe.optional "powers"          JsonDecode.string ""
-        |> Pipe.optional "labels"          (orderedDictDecoder JsonDecode.int) defaultLabelState
-        |> Pipe.optional "conditions"      (orderedDictDecoder JsonDecode.bool) defaultConditionsState
-        |> Pipe.optional "potential"       JsonDecode.int 0
-        |> Pipe.optional "markedPotential" JsonDecode.int 0
+init : JsonDecode.Value -> AppState
+init state = case JsonDecode.decodeValue appStateDecoder state of
+                    Ok app -> app
+                    Err err -> emptyAppState
 
-init : JsonDecode.Value -> CharacterState
-init state =
-    case JsonDecode.decodeValue characterStateDecoder state of
-        Ok char -> char
-        Err err ->
-            emptyCharacterState
-    -- { emptyCharacterState | potential = x }
+emptyUserSettings : UserSettings
+emptyUserSettings =
+    UserSettings (SyncDisabled (MaybeSync Nothing Nothing))
 
-defaultLabelState : OrderedDict String Int
-defaultLabelState =
-    (OrderedDict.empty
-    |> OrderedDict.insert "Danger" 0
-    |> OrderedDict.insert "Freak" 0
-    |> OrderedDict.insert "Savior" 0
-    |> OrderedDict.insert "Superior" 0
-    |> OrderedDict.insert "Mundane" 0
-    )
-defaultConditionsState : OrderedDict String Bool
-defaultConditionsState =
-    (OrderedDict.empty
-    |> OrderedDict.insert "Afraid" False
-    |> OrderedDict.insert "Angry" False
-    |> OrderedDict.insert "Guilty" False
-    |> OrderedDict.insert "Hopeless" False
-    |> OrderedDict.insert "Insecure" False
-    )
-    
-emptyCharacterState : CharacterState
-emptyCharacterState =
-    CharacterState ""
-        ""
-        ""
-        ""
-        ""
-        defaultLabelState
-        defaultConditionsState
-        0
-        0
-
+emptyAppState : AppState
+emptyAppState =
+    AppState Array.empty 0 emptyUserSettings
 
 type Msg
-    = ChangePlayer String
-    | ChangeName String
-    | ChangeHeroName String
-    | ChangePlaybook String
-    | ChangePowers String
-    | SetLabel String Int
-    | ToggleCondition String
-    | IncrementPotential
-    | DecrementPotential
-    | TogglePotentialMark Int
+    -- All messages that deal with the current character specifcally.
+    = CharMsg Character.Msg
+    | SwitchChar String
+    | ExportChar
+    -- | GotAuth (Result Http.Error String)
+    -- | CreateCharacter
+    -- | ReceivedSync
 
 
-withoutCache : (Msg -> CharacterState -> CharacterState) -> Msg -> CharacterState -> (CharacterState, Cmd Msg)
+withoutCache : (Character.Msg -> CharacterState -> CharacterState) -> Character.Msg -> CharacterState -> (CharacterState, Cmd Character.Msg)
 withoutCache func msg prevState =
     (func msg prevState, Cmd.none)
 
-withCache : (Msg -> CharacterState -> CharacterState) -> Msg -> CharacterState -> (CharacterState, Cmd Msg)
+withCache : (Character.Msg -> CharacterState -> CharacterState) -> Character.Msg -> CharacterState -> (CharacterState, Cmd Character.Msg)
 withCache func msg prevState =
     let state = func msg prevState
     in
         (state, cache <| encodeCharacterState state)
 
-update : Msg -> CharacterState -> CharacterState
+withAppCache : (Msg -> AppState -> (AppState, Cmd Msg)) -> Msg -> AppState -> (AppState, Cmd Msg)
+withAppCache func msg prevState =
+    let (state, cmd) = func msg prevState
+    in
+        (state, Cmd.batch [cache <| encodeAppState state, cmd])
+
+viewWithCharacterState : (CharacterState -> Html Character.Msg) -> AppState -> Html Character.Msg
+viewWithCharacterState charView model = case getCharacterState model.selectedCharacter model of
+                                            Just char -> charView char
+                                            Nothing -> charView Character.emptyCharacterState
+
+view : AppState -> Html Msg
+view model = Html.div [] [ Html.select [Html.Events.onInput SwitchChar] <| Array.toList <| Array.indexedMap
+                               (\i c -> Html.option
+                                    [Html.Attributes.value <| String.fromInt i]
+                                    [Html.text c.name])
+                               model.characters
+                         , Html.map CharMsg <| viewWithCharacterState (Character.view masksPlaybooks) model
+                         , Html.button [Html.Events.onClick ExportChar] [Html.text "Copy to Clipboard"]
+                         ]
+
+update : Msg -> AppState -> (AppState, Cmd Msg)
 update msg model =
     case msg of
-        ChangePlayer str ->
-            { model | player = str }
-
-        ChangeName str ->
-            { model | name = str }
-
-        ChangeHeroName str ->
-            { model | heroName = str }
-
-        ChangePlaybook str ->
-            { model | playbook = str }
-
-        ChangePowers str ->
-            { model | powers = str }
-
-        SetLabel label value ->
-            { model | labels = model.labels |> OrderedDict.insert label value }
-
-        ToggleCondition condition ->
-            { model
-                | conditions =
-                    model.conditions |> OrderedDict.update condition (\mv -> Maybe.map (\v -> not v) mv)
-            }
-
-        IncrementPotential ->
-            { model | potential = model.potential + 1 }
-
-        DecrementPotential ->
-            if model.potential > 0 then
-                { model | potential = model.potential - 1 }
-            else
-                model
-
-        TogglePotentialMark position ->
-            -- Note that `position` is normally 0 indexed,
-            -- what we're doing here works only if it's 1 indexed.
-            if (position + 1) * masksPotentialPerAdvance > model.markedPotential then
-                { model | markedPotential = model.markedPotential + masksPotentialPerAdvance }
-            else
-                { model | markedPotential = model.markedPotential - masksPotentialPerAdvance }
-
-
-
--- Thank fuck for currying.
-view : List String -> CharacterState -> Html Msg
-view playbooks model =
-    div []
-        [ div [ class "prelude" ]
-              [ nameRow "Player Name: " model.player ChangePlayer
-              , nameRow "Character Name: " model.name ChangeName
-              , nameRow "Hero Name: " model.heroName ChangeHeroName
-              , div [ class "prelude-field-box" ]
-                  [ span [ class "prelude-field-title" ] [ text "Playbook: " ]
-                  , input
-                        [ value model.playbook
-                        , name "playbook"
-                        , list "playbooks"
-                        , onInput ChangePlaybook
-                        , class "prelude-field"
-                        ]
-                        []
-                  , datalist [ id "playbooks" ]
-                      (List.map (\x -> option [] [ text x ]) playbooks)
-                  ]
-              , div [ class "prelude-field-box" ]
-                  [ span [ class "prelude-field-title" ] [ text "Powers/Abilities: " ]
-                  , textarea [ value model.powers, onInput ChangePowers, class "prelude-field" ] []
-                  ]
-              ]
-        , labelTable model.labels
-        , conditionRow model.conditions
-        , potentialRow masksPotentialPerAdvance model.potential model.markedPotential
-        ]
-
-
-nameRow : String -> String -> (String -> Msg) -> Html Msg
-nameRow fieldName fieldValue updateFunc =
-    div [ class "prelude-field-box" ]
-        [ span [ class "prelude-field-title" ] [ text fieldName ]
-        , input [ value fieldValue, onInput updateFunc, class "prelude-field" ] []
-        ]
-
-
+        CharMsg m ->
+            case getCharacterState model.selectedCharacter model of
+                Just char -> let new_char = Character.update m char
+                                 new_chars = Array.set model.selectedCharacter new_char model.characters
+                                 state = { model | characters = new_chars }
+                             in (state, Cmd.none)
+                -- If there is no character where selected,
+                -- create them until there is. Then, handle the actual message.
+                Nothing -> update msg
+                           { model | characters = Array.push Character.emptyCharacterState model.characters }
+        SwitchChar s -> case String.toInt s of
+                                    Just n -> ({ model | selectedCharacter = n }, Cmd.none)
+                                    Nothing -> (model, Cmd.none)
+        ExportChar -> (model, sheetToClipboard <| encodeCharacterState <|
+                           (getCharacterState model.selectedCharacter model
+                           |> Maybe.withDefault Character.emptyCharacterState))
+-- GotAuth r ->
+        --     case r of
+        --         Ok token -> model
+        --         Err _ -> model
 
 -- This is used as a parameter for our view,
 -- though perhaps it may be more suited to the model.
@@ -255,100 +170,69 @@ masksPlaybooks =
     ]
 
 
-masksPotentialPerAdvance : Int
-masksPotentialPerAdvance =
-    5
+-- All of the JSON encoders and decoders for this app are here at the top level,
+-- because they're really global to the app- the field names are arbitrary and
+-- not universal to all things that use the data types involved.
+-- If I ever want to make sweeping changes to this, it'd be a real pain to try and
+-- chase down all the pieces throughout a large number of files.
+-- Admittedly, the Elm Language Server + Emacs LSP mode would make this less of a pain,
+-- but I'd rather not deal with that.
 
-
-labelTable : OrderedDict String Int -> Html Msg
-labelTable dict =
-    div [] <|
-        [ table []
-              (mapOrdDict labelRow dict 0)
+encodeOrderedDict : (k -> String) -> (v -> JsonEncode.Value) -> OrderedDict k v -> JsonEncode.Value
+encodeOrderedDict keyFunc valFunc dict =
+    JsonEncode.object
+        [ ("order", JsonEncode.list (\k -> JsonEncode.string <| keyFunc k) dict.order)
+        , ("dict", JsonEncode.dict keyFunc valFunc dict.dict)
         ]
 
-labelRow : String -> Int -> Html Msg
-labelRow label value =
-    let cellFunc n =
-            td [ onClick <| SetLabel label n
-               , class "label-cell"
-               , if n == value then
-                     class "marked-label-cell"
-                 else
-                     class "unmarked-label-cell"
-               ] [ text <| String.fromInt n ]
-    in
-        div []
-            [ tr [ class "label-row" ]
-                ([ span [ class "label-title" ] <| [ text label ]
-                 , br [ class "label-title-break" ] []
-                 ] ++ (List.map cellFunc (List.range -2 3)))
-            ]
+-- Note that JSON cannot have non-String keys.
+orderedDictDecoder : (JsonDecode.Decoder v) -> JsonDecode.Decoder (OrderedDict String v)
+orderedDictDecoder valDecoder =
+    JsonDecode.succeed OrderedDict
+        |> Pipe.required "order" (JsonDecode.list JsonDecode.string)
+        |> Pipe.required "dict" (JsonDecode.dict valDecoder)
 
-mapOrdDict : (comparable -> v -> x) -> OrderedDict comparable v -> v -> List x
-mapOrdDict func dict d =
-    let
-        mapFunc key =
-            let
-                value =
-                    Maybe.withDefault d (Dict.get key dict.dict)
-            in
-            func key value
-    in
-    List.map mapFunc dict.order
+encodeCharacterState : CharacterState -> JsonEncode.Value
+encodeCharacterState state =
+    JsonEncode.object
+        [ ("player",          JsonEncode.string state.player)
+        , ("name",            JsonEncode.string state.name)
+        , ("heroName",        JsonEncode.string state.heroName)
+        , ("playbook",        JsonEncode.string state.playbook)
+        , ("powers",          JsonEncode.string state.powers)
+        , ("labels",          encodeOrderedDict identity JsonEncode.int state.labels)
+        , ("conditions",      encodeOrderedDict identity JsonEncode.bool state.conditions)
+        , ("potential",       JsonEncode.int state.potential)
+        , ("markedPotential", JsonEncode.int state.markedPotential)
+        ]
+encodeAppState : AppState -> JsonEncode.Value
+encodeAppState state =
+    JsonEncode.object
+        [ ("characters", JsonEncode.array encodeCharacterState state.characters)
+        , ("selectedCharacter", JsonEncode.int state.selectedCharacter)
+        ]
 
+characterStateDecoder : JsonDecode.Decoder CharacterState
+characterStateDecoder =
+    JsonDecode.succeed CharacterState
+        |> Pipe.optional "player"          JsonDecode.string ""
+        |> Pipe.optional "name"            JsonDecode.string ""
+        |> Pipe.optional "heroName"        JsonDecode.string ""
+        |> Pipe.optional "playbook"        JsonDecode.string ""
+        |> Pipe.optional "powers"          JsonDecode.string ""
+        |> Pipe.optional "labels"          (orderedDictDecoder JsonDecode.int) Character.defaultLabelState
+        |> Pipe.optional "conditions"      (orderedDictDecoder JsonDecode.bool) Character.defaultConditionsState
+        |> Pipe.optional "potential"       JsonDecode.int 0
+        |> Pipe.optional "markedPotential" JsonDecode.int 0
 
-conditionRow conditions =
-    let conditionFunc name marked =
-            div [ class "condition-cell"
-                , if marked then
-                      class "marked-condition-cell"
-                  else
-                      class "unmarked-condition-cell"
-                , onClick <| ToggleCondition name
-                ]
-                [ text name ]
-    in
-        div [ class "condition-row" ]
-            (mapOrdDict conditionFunc conditions False)
+-- userSettingsDecoder : JsonDecode.Decoder UserSettings
+-- userSettingsDecoder =
+--     JsonDecode.succeed 
+        
 
-
-potentialRow : Int -> Int -> Int -> Html Msg
-potentialRow perAdvance potential markedPotential =
-    let
-        cellFunc position amount =
-            div
-                [ class "potential-cell"
-                , if position < markedCells then
-                    class "marked-potential-cell"
-
-                  else
-                    class "unmarked-potential-cell"
-                , onClick <| TogglePotentialMark position
-                ]
-                [ text <| String.fromInt amount ]
-
-        markedCells =
-            markedPotential // perAdvance
-    in
-    div []
-        (button [ onClick IncrementPotential ] [ text "+" ]
-            :: button [ onClick DecrementPotential ] [ text "-" ]
-            :: List.indexedMap cellFunc (groupPotential perAdvance potential)
-        )
-
-
-
--- Note poor behavior over negative numbers,
--- but this app prohibits negative potential,
--- so it's fine.
-groupPotential : Int -> Int -> List Int
-groupPotential groupSize potential =
-    let
-        groups =
-            potential // groupSize
-
-        leftOver =
-            remainderBy groupSize potential
-    in
-    List.map (\x -> groupSize) (List.range 1 groups) ++ [ leftOver ]
+appStateDecoder : JsonDecode.Decoder AppState
+appStateDecoder =
+    JsonDecode.succeed AppState
+        |> Pipe.optional "characters" (JsonDecode.array characterStateDecoder) Array.empty
+        |> Pipe.optional "selectedCharacter" JsonDecode.int 0
+        |> Pipe.hardcoded emptyUserSettings
